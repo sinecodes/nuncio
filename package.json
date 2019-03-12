@@ -1,0 +1,42 @@
+{
+ "name": "nuncio",
+ "version": "1.0.0",
+ "description": "Discord bot",
+ "author": "sinecodes",
+ "license": "MIT",
+ "repository": {
+  "type": "git",
+  "url": "https://github.com/sinecodes/nuncio"
+ },
+ "engines": {
+  "node": "10.x",
+  "npm": "6.x"
+ },
+ "main": "app.js",
+ "scripts": {
+  "start": "npm install && npm run serve",
+  "serve": "node dist/src/app.js",
+  "tsc": "tsc",
+  "node:w": "nodemon dist/src/app.js",
+  "tsc:w": "tsc -w",
+  "postinstall": "npm run tsc"
+ },
+ "keywords": [
+  "discord",
+  "chatbot"
+ ],
+ "devDependencies": {
+  "@types/express": "^4.16.1",
+  "@types/node": "^10.12.24",
+  "@types/request-promise-native": "^1.0.15",
+  "nodemon": "^1.18.10",
+  "typescript": "^3.3.3"
+ },
+ "dependencies": {
+  "discord.js": "^11.4.2",
+  "express": "^4.16.4",
+  "howlongtobeat": "^1.1.1",
+  "request-promise-native": "^1.0.7",
+  "winston": "^3.2.1"
+ }
+}
