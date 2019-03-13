@@ -1,7 +1,7 @@
 
 
-import { Message, Guild, Role, Collection, PermissionResolvable, GuildMember } from "discord.js";
-import { CommandDefinition, CommandCallback} from "../definitions";
+import { Message, Role, PermissionResolvable, GuildMember } from "discord.js";
+import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 import { DEFAULT_EXCLUDED_PERMISSIONS } from "../structs";
 
@@ -62,7 +62,7 @@ async function ex(msg : Message, args : string[]): Promise<string> {
 
   try {
 
-    if (await hasExcludedPerms(role)) {
+    if (await hasExcludedPerms(role) && !userIsAboveRoleRank(member, role)) {
       return "You can't do that; ask a moderator to assign you a privileged role."
     
     } else {
