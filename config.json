@@ -1,4 +1,4 @@
 {
   "prefix": "?",
-  "log_level": "debug",
+  "log_level": "silly"
 }
