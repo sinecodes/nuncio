@@ -19,8 +19,11 @@ bot.commands    = commandsCollection;
 bot.cooldowns   = new Discord.Collection();
 
 bot.on("ready", () => {
+
   logger.info(`Logged in as ${bot.user.tag}.`);
+
   bot.user.setActivity(`${cfg.prefix}help`);
+
 });
 
 bot.on("message", msg => {

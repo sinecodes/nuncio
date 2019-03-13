@@ -1,10 +1,8 @@
 
 import { Collection } from "discord.js";
-import * as Winston from "winston";
 import * as fs from "fs";
 import * as path from "path";
 
-import * as cfg from "../../config.json";
 import { appLogger as logger } from "../logging";
 import { CommandDefinition } from "../definitions";
 
