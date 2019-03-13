@@ -1,14 +1,12 @@
 
-import * as req from "request-promise-native";
 import { HowLongToBeatService, HowLongToBeatEntry } from "howlongtobeat";
 
-import { Message, RichEmbed } from "discord.js";
+import { RichEmbed } from "discord.js";
 import { CommandDefinition, CommandCallback} from "../definitions";
-import { COLOURS } from "../structs";
 
 const name = "hltb";
 const desc = "search information in howlongtobeat";
-const help  = `
+const help = `
 \`\`\`
 Search in How Long To Beat.
 

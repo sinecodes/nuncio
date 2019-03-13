@@ -1,8 +1,6 @@
 
-import * as req from "request-promise-native";
-
-import { Message, RichEmbed } from "discord.js";
-import { CommandDefinition, CommandCallback} from "../definitions";
+import { RichEmbed } from "discord.js";
+import { CommandDefinition } from "../definitions";
 
 const name  = "about";
 const desc  = "";

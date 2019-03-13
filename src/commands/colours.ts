@@ -1,9 +1,9 @@
 
 
-import { Message, Guild, Role, Collection, PermissionResolvable, GuildMember } from "discord.js";
-import { CommandDefinition, CommandCallback} from "../definitions";
+import { Message, Guild, Role, GuildMember } from "discord.js";
+import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
-import { DEFAULT_PERMISSIONS, PERMISSIONS, COLOURS } from "../structs";
+import { PERMISSIONS, COLOURS } from "../structs";
 
 
 const name  = "color";

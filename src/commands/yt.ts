@@ -1,9 +1,8 @@
 
 import * as req from "request-promise-native";
-import { Message, RichEmbed } from "discord.js";
+import { RichEmbed } from "discord.js";
 
-import { CommandDefinition, CommandCallback} from "../definitions";
-import { COLOURS } from "../structs";
+import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 
 const yt_api : string = process.env.YT_TOKEN;

@@ -1,8 +1,8 @@
 
 import * as req from "request-promise-native";
-import { Message, RichEmbed } from "discord.js";
+import { RichEmbed } from "discord.js";
 
-import { CommandDefinition, CommandCallback} from "../definitions";
+import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 import { COLOURS } from "../structs";
 
