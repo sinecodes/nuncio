@@ -62,7 +62,7 @@ function parse(response : XML) : string | RichEmbed {
     try {
 
       let footer : string = 
-        `Playing time: ${response.get("playingtime").at(0).getProperty("value")}h`;
+        `Playing time: ${response.get("playingtime").at(0).getProperty("value")}m`;
 
       footer = footer + " | Players: ";
       footer = footer + `(${response.get("minplayers").at(0).getProperty("value")}`;
