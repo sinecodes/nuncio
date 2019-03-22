@@ -5,7 +5,7 @@ import { RichEmbed } from "discord.js";
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 
-const yt_api : string = process.env.YT_TOKEN;
+const yt_api : string | undefined = process.env.YT_TOKEN;
 
 const name = "yt";
 const desc = "search in youtube";

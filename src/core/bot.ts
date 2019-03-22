@@ -1,22 +1,23 @@
 
-import * as Discord from "discord.js";
+import { Client, Collection, RichEmbed } from "discord.js";
 
+import { CommandOpt, StringOpt, Commands, Cooldowns  } from "../definitions";
+import { commandsCollection } from "./command-handler";
+import { isCmdOnCooldown } from "../utils/cmdhelper";
 import { appLogger as logger } from "../logging";
 import * as cfg from "../../config.json";
-import { CommandDefinition } from "../definitions";
-import { commandsCollection } from "./command-handler";
 
 
-class Bot extends Discord.Client {
+class Bot extends Client {
 
-  public commands : Discord.Collection<string, CommandDefinition>;
-  public cooldowns: Discord.Collection<string, Discord.Collection<string, number>>;
+  public commands  : Commands;
+  public cooldowns : Cooldowns;
 
 }
 
-const bot       = new Bot();
-bot.commands    = commandsCollection;
-bot.cooldowns   = new Discord.Collection();
+const bot     = new Bot();
+bot.commands  = commandsCollection;
+bot.cooldowns = new Collection();
 
 bot.on("ready", () => {
 
@@ -29,45 +30,29 @@ bot.on("ready", () => {
 bot.on("message", msg => {
 
   if (!msg.content.startsWith(cfg.prefix) || msg.author.bot) return;
-  if (msg.content.length < 2) return;  // Avoid parsing on things like '?*'
+  if (msg.content.length < 2) return;  // Avoid parsing things like '?*'
 
 
-  const args : string[]   = msg.content.slice(cfg.prefix.length).split(/ +/);
-  const cmdName : string  = args.shift().toLowerCase();
+  const args : string[] = msg.content.slice(cfg.prefix.length).split(/ +/);
+  const cmdOpt : StringOpt = args.shift();
+  const cmdName = (cmdOpt === undefined) ? "" : cmdOpt;
 
   if (bot.commands.has(cmdName)) {
-    const command : CommandDefinition = bot.commands.get(cmdName);
 
-    if (! bot.cooldowns.has(cmdName)) {
-      bot.cooldowns.set(cmdName, new Discord.Collection());
-    }
+    const command : CommandOpt = bot.commands.get(cmdName);
+    if (command === undefined) {
 
-    const now       = Date.now();
-    const timestamps= bot.cooldowns.get(cmdName);
-    const cmdCool   = (command.cooldown || 5) * 1000;
-
-    if (timestamps.has(msg.author.id))  {
-      const expirationTime = timestamps.get(msg.author.id) + cmdCool;
-
-      if (now < expirationTime) {
-        const timeLeft = (expirationTime - now) / 1000;
-        return msg.reply(
-          `Please wait ${timeLeft.toFixed(1)} more second(s) before reusing the \`${command.name}\` command.`
-        );
-      } else {
-        timestamps.delete(msg.author.id);
-
-      }
-
-    
-    } else {
-      timestamps.set(msg.author.id, now);
+      logger.error(`Undefined module for known loaded command: ${cmdName}`)
+      return "That command isn't properly working right now.";
     
     }
 
-    const result : Promise<string | Discord.RichEmbed> = command.execute(msg, args);
+    const cooldownResult = isCmdOnCooldown(bot.cooldowns, command, msg.author.id);
+    if (cooldownResult !== null) msg.reply(cooldownResult);
 
-    result.then(payload => {
+    const commandResult : Promise<string | RichEmbed> = command.execute(msg, args);
+
+    commandResult.then(payload => {
       return msg.channel.send(payload);
 
     }).catch( err => {
@@ -85,7 +70,18 @@ bot.on("message", msg => {
       return msg.channel.send(`List of available cmds: ${keys.join(", ")}.`)
 
     } else {
-      return msg.channel.send(bot.commands.get(args[0]).help);
+
+      const cmd = bot.commands.get(args[0]);
+
+      if ( cmd === undefined ) {
+
+        logger.error(`Undefined help call for known loaded command: ${args[0]}`)
+        return "That command isn't properly working right now.";
+
+      } else {
+        return msg.channel.send(cmd.help);
+
+      }
 
     }
 

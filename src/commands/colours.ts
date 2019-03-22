@@ -1,6 +1,6 @@
 
 
-import { Message, Guild, Role, GuildMember } from "discord.js";
+import { Message, Guild, Role, GuildMember, PermissionResolvable } from "discord.js";
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 import { PERMISSIONS, COLOURS } from "../structs";
@@ -28,7 +28,7 @@ function isRoleAColour(role: Role, roleColour: string) : boolean {
     role.hexColor === COLOURS.get(role.name);
 }
 
-async function createColourInGuild(guild: Guild, roleName: string) : Promise<Role> {
+async function createColourInGuild(guild: Guild, roleName: string) : Promise<Role | null> {
 
   const roleCandidate = guild.roles.find( (role, snowflake) => {
     return isRoleAColour(role, roleName);
@@ -112,7 +112,7 @@ async function ex(msg : Message, args : string[]): Promise<string> {
 
 
       const isMemberAllowed = msg.member.permissions.has(
-        PERMISSIONS.get("manage_roles")
+        PERMISSIONS.get("manage_roles") as PermissionResolvable
       );
 
       if (isMemberAllowed){
@@ -131,7 +131,7 @@ async function ex(msg : Message, args : string[]): Promise<string> {
     } else if (arg === "create") {
 
       const isMemberAllowed = msg.member.permissions.has(
-        PERMISSIONS.get("manage_roles")
+        PERMISSIONS.get("manage_roles") as PermissionResolvable
       );
 
       if (isMemberAllowed) {

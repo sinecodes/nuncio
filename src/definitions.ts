@@ -1,6 +1,6 @@
 
 
-import { Message, RichEmbed } from "discord.js";
+import { Message, RichEmbed, Collection} from "discord.js";
 
 
 declare type CommandCallback =
@@ -41,7 +41,23 @@ interface Alert {
 
 }
 
+declare type CommandOpt = CommandDefinition | undefined;
+declare type StringOpt  = string | undefined;
+declare type Timestamps = Collection<string, number>;
+declare type Cooldowns  = Collection<string, Timestamps>
+declare type Commands   = Collection<string, CommandDefinition>;
 
 
 
-export { CommandDefinition, CommandCallback, Alert };
+export {
+
+  CommandDefinition,
+  CommandCallback,
+  Alert,
+  CommandOpt,
+  StringOpt,
+  Commands,
+  Cooldowns,
+  Timestamps
+
+};
