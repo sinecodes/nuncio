@@ -1,8 +1,9 @@
 
 
-import { Message, Guild, Role, GuildMember, PermissionResolvable } from "discord.js";
+import { Message, RichEmbed, Guild, Role, GuildMember, PermissionResolvable } from "discord.js";
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
+import { DEFAULT_COOLDOWN } from "../constants";
 import { PERMISSIONS, COLOURS } from "../structs";
 
 
@@ -19,147 +20,167 @@ color {color}   - assign/unassign yourself a color
 \`\`\`
 `;
 
-class Colour extends CommandDefinition {
-}
+class Colour implements CommandDefinition {
 
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
-function isRoleAColour(role: Role, roleColour: string) : boolean {
-  return role.name === roleColour &&
-    role.hexColor === COLOURS.get(role.name);
-}
+  constructor (
 
-async function createColourInGuild(guild: Guild, roleName: string) : Promise<Role | null> {
+    _name        : string,
+    _description : string,
+    _help        : string | RichEmbed,
+    _cooldown    : number
+  
+  ) {
 
-  const roleCandidate = guild.roles.find( (role, snowflake) => {
-    return isRoleAColour(role, roleName);
-  });
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+  
+  }
 
-  if (roleCandidate !== null) 
-    return null;
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed>{
 
-  return await guild.createRole({
+    const arg       = (args[0]).toLowerCase();
+    const member    = msg.member;
+    const guild     = msg.guild;
+    let response    = `Which color is *${arg}*?`;
 
-    name    : roleName,
-    color   : COLOURS.get(roleName),
-    hoist   : false,
+    try {
 
-    mentionable : false
+      if (COLOURS.has(arg)) {
 
-  });
+        const matchedRole : Role = (member.roles).find(
+          (role, snowflake) => { 
+            return this.isRoleAColour(role, arg);
+          }
+        );
 
-}
+        if (!matchedRole) {
 
-async function getRole(guild : Guild, roleName : string) : Promise<Role> {
+          await this.cleanColoursFromMember(member);
+          const role = await this.getRole(guild, arg);
 
-  return await guild.roles.find(
-    (role, snowflake) => {
-      return isRoleAColour(role, roleName);
-    }
-  );
+          if (role) {
 
-}
+            member.addRole(role);
+            response = `You're now ${arg}!`;
+          
+          } else {
+            response = "Ask a mod to initialize the colour system first.";
 
-async function cleanColoursFromMember(member: GuildMember) {
+          }
 
-  member.roles.forEach( (role, snowflake) => {
-    if (isRoleAColour(role, role.name))
-      member.removeRole(role);
-  });
-
-}
-
-async function ex(msg : Message, args : string[]): Promise<string> {
-
-  const arg       = (args[0]).toLowerCase();
-  const member    = msg.member;
-  const guild     = msg.guild;
-  let response    = `Which color is *${arg}*?`;
-
-  try {
-
-    if (COLOURS.has(arg)) {
-
-      const matchedRole : Role = (member.roles).find(
-        (role, snowflake) => { 
-          return isRoleAColour(role, arg);
-        }
-      );
-
-      if (!matchedRole) {
-
-        await cleanColoursFromMember(member);
-        const role = await getRole(guild, arg);
-
-        if (role) {
-
-          member.addRole(role);
-          response = `You're now ${arg}!`;
         
         } else {
-          response = "Ask a mod to initialize the colour system first.";
+
+          member.removeRole(matchedRole);
+          response = `Color reverted!`;
 
         }
 
-      
-      } else {
+      } else if (arg === "delete" || arg === "clean") {
 
-        member.removeRole(matchedRole);
-        response = `Color reverted!`;
 
+        const isMemberAllowed = msg.member.permissions.has(
+          PERMISSIONS.get("manage_roles") as PermissionResolvable
+        );
+
+        if (isMemberAllowed){
+
+          guild.roles.array().forEach( (role : Role) => {
+            if (COLOURS.has(role.name.toLowerCase()) && this.isRoleAColour)
+              role.delete();
+          });
+
+          response = "Everything cleaned up.";
+
+        } else {
+          response = "You're not allowed to do that";
+        }
+
+      } else if (arg === "create") {
+
+        const isMemberAllowed = msg.member.permissions.has(
+          PERMISSIONS.get("manage_roles") as PermissionResolvable
+        );
+
+        if (isMemberAllowed) {
+
+          COLOURS.forEach(async (hexString, key) => {
+            await this.createColourInGuild(guild, key);
+          });
+
+          response = "Roles created.";
+
+        } else {
+          response = "You're not allowed to do that";
+        
+        }
       }
 
-    } else if (arg === "delete" || arg === "clean") {
+    } catch(err) {
 
+      logger.error(<Error>err.stack);
 
-      const isMemberAllowed = msg.member.permissions.has(
-        PERMISSIONS.get("manage_roles") as PermissionResolvable
-      );
+      response = "I can't do that; do I have the required permissions?";
 
-      if (isMemberAllowed){
-
-        guild.roles.array().forEach( (role : Role) => {
-          if (COLOURS.has(role.name.toLowerCase()) && isRoleAColour)
-            role.delete();
-        });
-
-        response = "Everything cleaned up.";
-
-      } else {
-        response = "You're not allowed to do that";
-      }
-
-    } else if (arg === "create") {
-
-      const isMemberAllowed = msg.member.permissions.has(
-        PERMISSIONS.get("manage_roles") as PermissionResolvable
-      );
-
-      if (isMemberAllowed) {
-
-        COLOURS.forEach(async (hexString, key) => {
-          await createColourInGuild(guild, key);
-        });
-
-        response = "Roles created.";
-
-      } else {
-        response = "You're not allowed to do that";
-      
-      }
     }
 
-  } catch(err) {
-
-    logger.error(<Error>err.stack);
-
-    response = "I can't do that; do I have the required permissions?";
+    return response;
 
   }
 
-  return response;
+  private isRoleAColour(role: Role, roleColour: string) : boolean {
+    return role.name === roleColour &&
+      role.hexColor === COLOURS.get(role.name);
+  }
+
+  private async createColourInGuild(guild: Guild, roleName: string) : Promise<Role | null> {
+
+    const roleCandidate = guild.roles.find( (role, snowflake) => {
+      return this.isRoleAColour(role, roleName);
+    });
+
+    if (roleCandidate !== null) 
+      return null;
+
+    return await guild.createRole({
+
+      name    : roleName,
+      color   : COLOURS.get(roleName),
+      hoist   : false,
+
+      mentionable : false
+
+    });
+
+  }
+
+  private async getRole(guild : Guild, roleName : string) : Promise<Role> {
+
+    return await guild.roles.find(
+      (role, snowflake) => {
+        return this.isRoleAColour(role, roleName);
+      }
+    );
+
+  }
+
+  private async cleanColoursFromMember(member: GuildMember) {
+
+    member.roles.forEach( (role, snowflake) => {
+      if (this.isRoleAColour(role, role.name))
+        member.removeRole(role);
+    });
+
+  }
 
 }
 
-const colour = new Colour(name, desc, help, ex);
-
+const colour = new Colour(name, desc, help, DEFAULT_COOLDOWN);
 module.exports = colour;

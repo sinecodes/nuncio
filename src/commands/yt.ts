@@ -1,9 +1,10 @@
 
 import * as req from "request-promise-native";
-import { RichEmbed } from "discord.js";
+import { Message, RichEmbed } from "discord.js";
 
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
+import { DEFAULT_COOLDOWN } from "../constants";
 
 const yt_api : string | undefined = process.env.YT_TOKEN;
 
@@ -20,25 +21,30 @@ yt {term}
 
 const url  = "https://content.googleapis.com/youtube/v3/search";
 
-class Yt extends CommandDefinition {
-}
+class Yt implements CommandDefinition {
 
-function parse(response : string) : string {
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
-  try {
+  constructor (
+
+    _name        : string,
+    _description : string,
+    _help        : string|RichEmbed,
+    _cooldown    : number
   
-    let data    = JSON.parse(response);
-    let first   = data["items"][0];
+  ) {
 
-    return "https://youtu.be/" + first["id"]["videoId"];
-  } catch (e) {
-    return "Didn't find anything."
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+  
   }
 
-}
-
-const yt =
-  new Yt(name, desc, help, async (msg, args) => {
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed> {
 
     var result : RichEmbed | string = `Didn't find anything by ${args.join(" ")}`;
 
@@ -56,7 +62,7 @@ const yt =
     try {
 
       let response = await req.get(options);
-      result = parse(response);
+      result = this.parse(response);
 
     } catch (err) {
 
@@ -67,6 +73,26 @@ const yt =
 
     return result;
 
-  });
+  }
+
+  private parse(response : string) : string {
+
+    try {
+    
+      let data    = JSON.parse(response);
+      let first   = data["items"][0];
+
+      return "https://youtu.be/" + first["id"]["videoId"];
+    } catch (e) {
+      return "Didn't find anything."
+    }
+
+  }
+
+}
+
+
+const yt =
+  new Yt(name, desc, help, DEFAULT_COOLDOWN);
 
 module.exports = yt;

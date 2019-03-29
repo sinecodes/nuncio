@@ -4,9 +4,10 @@ import XML = sxml.XML;
 import XMLList = sxml.XMLList;
 
 import * as req from "request-promise-native";
-import { RichEmbed } from "discord.js";
+import { Message, RichEmbed } from "discord.js";
 
 import { CommandDefinition } from "../definitions";
+import { DEFAULT_COOLDOWN } from "../constants";
 import { appLogger as logger } from "../logging";
 
 const name = "bgg";
@@ -23,122 +24,30 @@ yt {term}
 const baseURL = "https://www.boardgamegeek.com/xmlapi2/";
 const types   = "boardgame,boardgameexpansion,videogame";
 
-class BGG extends CommandDefinition {
-}
+class BGG implements CommandDefinition {
 
-function decodeHtml(text : string) : string {
-  return text
-    .replace(/&amp;/g  , '&')
-    .replace(/&lt;/g   , '<')
-    .replace(/&mdash;/g, '-')
-    .replace(/&gt;/g   , '>')
-    .replace(/&quot;/g , '"')
-    .replace(/&#10;/g  , '\n')
-    .replace(/&#039;/g , '\'');
-}
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
-function parse(response : XML) : string | RichEmbed {
+  constructor (
 
-  let result : string | RichEmbed = "Didn't find anything.";
-
-  try {
-
-    let unparsed = response.get("name").at(0).getProperty("value");
-    let _title : string = decodeHtml(unparsed);
-
-    result = new RichEmbed({
-      title : _title
-    });
-
-    let description : string = decodeHtml(response.get("description").at(0).getValue());
-    description = description.length < 1024 ? description : description.slice(0, 1020)+"...";
-
-    result.addField(
-      "Description",
-      description
-      
-    );
-
-    try {
-
-      let footer : string = 
-        `Playing time: ${response.get("playingtime").at(0).getProperty("value")}m`;
-
-      footer = footer + " | Players: ";
-      footer = footer + `(${response.get("minplayers").at(0).getProperty("value")}`;
-      footer = footer + ` - ${response.get("maxplayers").at(0).getProperty("value")})`;
-      
-
-      result.setFooter(footer);
-
-    } catch (err){
-      // Some items don't seem to have some attributes. It's fine to let it fail when
-      // that happens.
-      
-    }
-
-    result.setThumbnail(response.get("thumbnail").at(0).getValue());
+    _name        : string,
+    _description : string,
+    _help        : string|RichEmbed,
+    _cooldown    : number
   
+  ) {
 
-  } catch (e) {
-    return `Error deserializing, did the schema change?: ${(<Error>e).message}`;
-
-  }
-
-  return result;
-
-}
-
-async function searchQuery(str : string) : Promise<XMLList | null> {
-
-  const searchEndpoint = `${baseURL}search?query=${str}&type=${types}`;
-
-  const searchOpts : req.Options = {
-    uri         : searchEndpoint,
-    encoding    : "utf-8",
-    method      : "GET",
-    headers     : {
-      "Content-Type" : "application/json"
-    }
-  };
-
-  let response : string = await req.get(searchOpts) ;
-  let xml = new XML(response);
-
-  try {
-    return new XMLList(xml.get("item"));
-
-  } catch (err) {
-    return null;
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
   
   }
 
-
-}
-
-async function itemQuery(titleId: string) : Promise<XML> {
-
-  const itemEndpoint = `${baseURL}thing?id=${titleId}`;
-
-  const itemOpts : req.Options = {
-    uri         : itemEndpoint,
-    encoding    : "utf-8",
-    method      : "GET",
-    headers     : {
-      "Content-Type" : "application/json"
-    }
-  };
-
-  let response : string = await req.get(itemOpts) ;
-  let xml = new XML(response);
-
-  return new XML(xml.get("item").at(0));
-
-}
-
-
-const bgg =
-  new BGG(name, desc, help, async (msg, args) => {
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed> {
 
     var result : RichEmbed | string = `Didn't find anything by ${args.join(" ")}`;
 
@@ -146,14 +55,13 @@ const bgg =
 
     try {
 
-
-      let searchPayload = await searchQuery(query);
+      let searchPayload = await this.searchQuery(query);
 
       if (searchPayload === null || searchPayload.size() == 0) return result;
 
-      let parsedPayload = await itemQuery(searchPayload.at(0).getProperty("id"));
+      let parsedPayload = await this.itemQuery(searchPayload.at(0).getProperty("id"));
 
-      result = parse(parsedPayload);
+      result = this.parse(parsedPayload);
 
     } catch (err) {
 
@@ -164,6 +72,120 @@ const bgg =
 
     return result;
 
-  });
 
+  }
+
+  private decodeHtml(text : string) : string {
+    return text
+      .replace(/&amp;/g  , '&')
+      .replace(/&lt;/g   , '<')
+      .replace(/&mdash;/g, '-')
+      .replace(/&gt;/g   , '>')
+      .replace(/&quot;/g , '"')
+      .replace(/&#10;/g  , '\n')
+      .replace(/&#039;/g , '\'');
+  }
+
+  private parse(response : XML) : string | RichEmbed {
+
+    let result : string | RichEmbed = "Didn't find anything.";
+
+    try {
+
+      let unparsed = response.get("name").at(0).getProperty("value");
+      let _title : string = this.decodeHtml(unparsed);
+
+      result = new RichEmbed({
+        title : _title
+      });
+
+      let description : string = this.decodeHtml(response.get("description").at(0).getValue());
+      description = description.length < 1024 ? description : description.slice(0, 1020)+"...";
+
+      result.addField(
+        "Description",
+        description
+        
+      );
+
+      try {
+
+        let footer : string = 
+          `Playing time: ${response.get("playingtime").at(0).getProperty("value")}m`;
+
+        footer = footer + " | Players: ";
+        footer = footer + `(${response.get("minplayers").at(0).getProperty("value")}`;
+        footer = footer + ` - ${response.get("maxplayers").at(0).getProperty("value")})`;
+        
+
+        result.setFooter(footer);
+
+      } catch (err){
+        // Some items don't seem to have some attributes. It's fine to let it fail when
+        // that happens.
+        
+      }
+
+      result.setThumbnail(response.get("thumbnail").at(0).getValue());
+    
+
+    } catch (e) {
+      return `Error deserializing, did the schema change?: ${(<Error>e).message}`;
+
+    }
+
+    return result;
+
+  }
+
+  private async searchQuery(str : string) : Promise<XMLList | null> {
+
+    const searchEndpoint = `${baseURL}search?query=${str}&type=${types}`;
+
+    const searchOpts : req.Options = {
+      uri         : searchEndpoint,
+      encoding    : "utf-8",
+      method      : "GET",
+      headers     : {
+        "Content-Type" : "application/json"
+      }
+    };
+
+    let response : string = await req.get(searchOpts) ;
+    let xml = new XML(response);
+
+    try {
+      return new XMLList(xml.get("item"));
+
+    } catch (err) {
+      return null;
+    
+    }
+
+
+  }
+
+  private async itemQuery(titleId: string) : Promise<XML> {
+
+    const itemEndpoint = `${baseURL}thing?id=${titleId}`;
+
+    const itemOpts : req.Options = {
+      uri         : itemEndpoint,
+      encoding    : "utf-8",
+      method      : "GET",
+      headers     : {
+        "Content-Type" : "application/json"
+      }
+    };
+
+    let response : string = await req.get(itemOpts) ;
+    let xml = new XML(response);
+
+    return new XML(xml.get("item").at(0));
+
+  }
+
+}
+
+const bgg = new BGG(name, desc, help, DEFAULT_COOLDOWN);
 module.exports = bgg;

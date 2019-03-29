@@ -1,8 +1,9 @@
 
 
-import { Message, Role, PermissionResolvable, GuildMember } from "discord.js";
+import { Message, RichEmbed, Role, PermissionResolvable, GuildMember } from "discord.js";
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
+import { DEFAULT_COOLDOWN } from "../constants";
 import { DEFAULT_EXCLUDED_PERMISSIONS } from "../structs";
 
 
@@ -21,78 +22,100 @@ role {rolename}     - Assign/Unassign role
 \`\`\`
 `;
 
-class GuildRole extends CommandDefinition {
-}
+class GuildRole implements CommandDefinition {
 
-async function hasExcludedPerms(role : Role) : Promise<boolean> {
-  return role.hasPermission(<PermissionResolvable>DEFAULT_EXCLUDED_PERMISSIONS);
-}
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
+  constructor (
 
-async function userIsAboveRoleRank(user: GuildMember, targetRole : Role) : Promise<boolean> {
-
-  // TODO test this one with a supposedly unprivileged user attempting to assign theirselves
-  // a role with higher rank than their highest ranked role.
-  const roleCandidate : Role | null = user.roles.find( (role, snowflake) => {
-    return role.position > targetRole.position;
-  });
-
-  return (roleCandidate !== null);
-}
-
-
-async function userHasRole(member : GuildMember, role : Role) : Promise<boolean> {
-
-  const roleCandidate : Role | null = member.roles.find( (userRole, snowflake) => { 
-    return userRole.name === role.name; 
-  });
-
-  return (roleCandidate !== null);
-
-}
-
-async function ex(msg : Message, args : string[]): Promise<string> {
-
-  const arg       = args.join(" ");
-  const member    = msg.member;
-  const guild     = msg.guild;
-  let response    = "";
-
-  const role : Role = guild.roles.find( (role, snowflake) => { return role.name === arg; });
-
-  try {
-
-    if (await hasExcludedPerms(role) && !userIsAboveRoleRank(member, role)) {
-      return "You can't do that; ask a moderator to assign you a privileged role."
-    
-    } else {
-
-      if (await userHasRole(member, role)) {
-
-        member.removeRole(role);
-        response = `Role "${role.name}" removed.`
-
-      } else {
-
-        member.addRole(role);
-        response = `Role "${role.name}" added.`
-
-      }
+    _name        : string,
+    _description : string,
+    _help        : string | RichEmbed,
+    _cooldown    : number
   
-    }
+  ) {
 
-  } catch (err) {
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+  
+  }
 
-    logger.error(<Error>err.stack);
+  private async hasExcludedPerms(role : Role) : Promise<boolean> {
+    return role.hasPermission(<PermissionResolvable>DEFAULT_EXCLUDED_PERMISSIONS);
+  }
 
-    response = "I can't do that; do I have the required permissions?";
+
+  private async userIsAboveRoleRank(user: GuildMember, targetRole : Role) : Promise<boolean> {
+
+    // TODO test this one with a supposedly unprivileged user attempting to assign theirselves
+    // a role with higher rank than their highest ranked role.
+    const roleCandidate : Role | null = user.roles.find( (role, snowflake) => {
+      return role.position > targetRole.position;
+    });
+
+    return (roleCandidate !== null);
+  }
+
+
+  private async userHasRole(member : GuildMember, role : Role) : Promise<boolean> {
+
+    const roleCandidate : Role | null = member.roles.find( (userRole, snowflake) => { 
+      return userRole.name === role.name; 
+    });
+
+    return (roleCandidate !== null);
 
   }
 
-  return response;
+  async execute(msg : Message, args : string[]): Promise<string | RichEmbed> {
+
+    const arg       = args.join(" ");
+    const member    = msg.member;
+    const guild     = msg.guild;
+    let response    = "";
+
+    const role : Role = guild.roles.find( (role, snowflake) => { return role.name === arg; });
+
+    try {
+
+      if (await this.hasExcludedPerms(role) && !this.userIsAboveRoleRank(member, role)) {
+        return "You can't do that; ask a moderator to assign you a privileged role."
+      
+      } else {
+
+        if (await this.userHasRole(member, role)) {
+
+          member.removeRole(role);
+          response = `Role "${role.name}" removed.`
+
+        } else {
+
+          member.addRole(role);
+          response = `Role "${role.name}" added.`
+
+        }
+    
+      }
+
+    } catch (err) {
+
+      logger.error(<Error>err.stack);
+
+      response = "I can't do that; do I have the required permissions?";
+
+    }
+
+    return response;
+
+  }
 
 }
 
-const role = new GuildRole(name, desc, help, ex);
+const role = new GuildRole(name, desc, help, DEFAULT_COOLDOWN);
 
 module.exports = role;

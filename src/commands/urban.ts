@@ -1,10 +1,11 @@
 
 import * as req from "request-promise-native";
-import { RichEmbed } from "discord.js";
+import { Message, RichEmbed } from "discord.js";
 
 import { CommandDefinition } from "../definitions";
 import { appLogger as logger } from "../logging";
 import { COLOURS } from "../structs";
+import { DEFAULT_COOLDOWN } from "../constants";
 
 const name = "urban";
 const desc = "search in urban dictionary";
@@ -19,30 +20,30 @@ urban {term}
 
 const url  = "http://api.urbandictionary.com/v0/define?term=";
 
-class Urban extends CommandDefinition {
-}
+class Urban implements CommandDefinition {
 
-function parse(response : string) : RichEmbed {
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
-  let data    = JSON.parse(response);
-  let first   = data["list"][0];
+  constructor (
 
-  let result      = new RichEmbed({
-    title       : "Definition: " + first["word"],
-    url         : first["permalink"],
-    description : first["definition"],
-    color       : COLOURS.get("blue")
-  });
+    _name        : string,
+    _description : string,
+    _help        : string|RichEmbed,
+    _cooldown    : number
+  
+  ) {
 
-  result.addField(
-    "Example", first["example"]
-  );
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+  
+  }
 
-  return result;
-}
-
-const urban =
-  new Urban(name, desc, help, async (msg, args) => {
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed> {
 
     var result : RichEmbed | string = `Didn't find anything by ${args.join(" ")}`;
 
@@ -60,7 +61,7 @@ const urban =
     try {
 
       let response = await req.get(options);
-      result = parse(response);
+      result = this.parse(response);
 
     } catch (err) {
 
@@ -71,6 +72,29 @@ const urban =
 
     return result;
 
-  });
+  }
+
+  private parse(response : string) : RichEmbed {
+
+    let data    = JSON.parse(response);
+    let first   = data["list"][0];
+
+    let result      = new RichEmbed({
+      title       : "Definition: " + first["word"],
+      url         : first["permalink"],
+      description : first["definition"]
+    });
+
+    result.addField(
+      "Example", first["example"]
+    );
+
+    return result;
+  }
+
+}
+
+const urban =
+  new Urban(name, desc, help, DEFAULT_COOLDOWN);
 
 module.exports = urban;

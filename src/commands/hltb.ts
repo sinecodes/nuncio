@@ -1,8 +1,9 @@
 
 import { HowLongToBeatService, HowLongToBeatEntry } from "howlongtobeat";
 
-import { RichEmbed } from "discord.js";
-import { CommandDefinition, CommandCallback} from "../definitions";
+import { Message, RichEmbed } from "discord.js";
+import { CommandDefinition } from "../definitions";
+import { DEFAULT_COOLDOWN } from "../constants";
 
 const name = "hltb";
 const desc = "search information in howlongtobeat";
@@ -15,55 +16,43 @@ hltb {game name}
 \`\`\`
 `;
 
+class Hltb implements CommandDefinition {
 
-function parse(payload : HowLongToBeatEntry) : RichEmbed {
-
-  let embed : RichEmbed = new RichEmbed({
-    title : payload.name
-  });
-
-  embed.addField(
-    "Main", payload.gameplayMain
-  );
-
-  embed.addField(
-    "Main + extras", payload.gameplayMainExtra
-  );
-
-  embed.addField(
-    "Completionist", payload.gameplayCompletionist
-  );
-
-  embed.setThumbnail(payload.imageUrl);
-  embed.setFooter(`Confidence: ${payload.similarity}`);
-
-  return embed;
-}
-
-class Hltb extends CommandDefinition {
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
 
   service : HowLongToBeatService;
 
-  constructor(_name : string, _desc : string, _help : string, _ex : CommandCallback) {
+  constructor (
 
-    super(_name, _desc, _help, _ex);
-    this.service = new HowLongToBeatService();
+    _name        : string,
+    _description : string,
+    _help        : string | RichEmbed,
+    _cooldown    : number,
+    _service     : HowLongToBeatService
+  
+  ) {
 
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+    this.service     = _service;
+  
   }
 
-}
-
-const hltb =
-  new Hltb(name, desc, help, async (msg, args) => {
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed> {
 
     var result : RichEmbed | string = `Didn't find anything by ${args.join(" ")}`;
 
     try {
 
       let response : Array<HowLongToBeatEntry> = 
-        await hltb.service.search(args.join(" "));
+        await this.service.search(args.join(" "));
 
-      result = parse(response[0]);
+      result = this.parse(response[0]);
 
     } catch (err) {
       return (<Error>err).message;
@@ -73,6 +62,35 @@ const hltb =
 
     return result;
 
-  });
+  }
+
+  private parse(payload : HowLongToBeatEntry) : RichEmbed {
+
+    let embed : RichEmbed = new RichEmbed({
+      title : payload.name
+    });
+
+    embed.addField(
+      "Main", payload.gameplayMain
+    );
+
+    embed.addField(
+      "Main + extras", payload.gameplayMainExtra
+    );
+
+    embed.addField(
+      "Completionist", payload.gameplayCompletionist
+    );
+
+    embed.setThumbnail(payload.imageUrl);
+    embed.setFooter(`Confidence: ${payload.similarity}`);
+
+    return embed;
+  }
+
+}
+
+const hltb =
+  new Hltb(name, desc, help, DEFAULT_COOLDOWN, new HowLongToBeatService());
 
 module.exports = hltb;

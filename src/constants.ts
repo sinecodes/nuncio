@@ -1,0 +1,5 @@
+
+
+const DEFAULT_COOLDOWN = 5;
+
+export { DEFAULT_COOLDOWN };

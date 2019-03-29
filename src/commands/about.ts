@@ -1,15 +1,36 @@
 
-import { RichEmbed } from "discord.js";
+import { Message, RichEmbed } from "discord.js";
 import { CommandDefinition } from "../definitions";
+import { DEFAULT_COOLDOWN } from "../constants";
 
 const name  = "about";
 const desc  = "";
 const help  = "";
-class About extends CommandDefinition {
-}
 
-const about =
-  new About(name, desc, help, async (msg, args) => {
+class About implements CommandDefinition {
+
+  name        : string;
+  description : string;
+  help        : string | RichEmbed;
+  cooldown    : number;
+
+  constructor (
+
+    _name        : string,
+    _description : string,
+    _help        : string|RichEmbed,
+    _cooldown    : number
+  
+  ) {
+
+    this.name        = _name;
+    this.description = _description;
+    this.help        = _help;
+    this.cooldown    = _cooldown;
+  
+  }
+
+  async execute (msg: Message, args: string[]) : Promise<string | RichEmbed> {
 
     let embed = new RichEmbed({
       title : "About me"
@@ -26,6 +47,11 @@ const about =
 
     return embed;
 
-  });
+  }
+  
+}
+
+const about =
+  new About(name, desc, help, DEFAULT_COOLDOWN);
 
 module.exports = about;
