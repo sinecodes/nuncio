@@ -4,6 +4,7 @@ import * as Winston from "winston";
 
 import { CommandDefinition } from "../definitions";
 import { AlarmRepo } from '../data/datetime';
+import { SettingsRepo } from '../data/settings';
 import { DEFAULT_COOLDOWN } from '../constants';
 
 const sillyConsole =
@@ -90,6 +91,8 @@ class Alarm implements CommandDefinition {
 
   private reasonMaxLength : number;
   private hourRegexp      : RegExp;
+  private ddmmRegexp      : RegExp;
+
 
   private logger : Winston.Logger;
 
@@ -97,7 +100,8 @@ class Alarm implements CommandDefinition {
   description : string;
   help        : string | RichEmbed;
   cooldown    : number;
-  repo        : AlarmRepo;
+  alarmRepo   : AlarmRepo;
+  settingsRepo: SettingsRepo;
 
   constructor (
 
@@ -105,7 +109,8 @@ class Alarm implements CommandDefinition {
     _description : string,
     _help        : string | RichEmbed,
     _cooldown    : number,
-    _repo        : AlarmRepo
+    _alarmRepo   : AlarmRepo,
+    _settingsRepo: SettingsRepo
   
   ) {
 
@@ -113,7 +118,8 @@ class Alarm implements CommandDefinition {
     this.description = _description;
     this.help        = _help;
     this.cooldown    = _cooldown;
-    this.repo        = _repo;
+    this.alarmRepo   = _alarmRepo;
+    this.settingsRepo= _settingsRepo;
 
     this.setUp();
     this.setUpLogger();
@@ -147,6 +153,9 @@ class Alarm implements CommandDefinition {
     
     this.hourRegexp = 
       new RegExp("^([0-1]?[0-9]|2[0-4])[:|.]([0-5][0-9])(:[0-5][0-9])?$");
+
+    this.ddmmRegexp = 
+      new RegExp("^([1-9]|[0-2][0-9]|(3)[0-1])(\/|-)(((0)[0-9])|((1)[0-2]))$");
 
   }
   
@@ -197,12 +206,12 @@ class Alarm implements CommandDefinition {
       const time   = data.date as Time;
       const reason = (data.reason === null) ? "" : data.reason;
 
-      // XXX include offset
       const unix = new Date(0);
+
       unix.setUTCHours(unix.getUTCHours() + time.hours);
       unix.setUTCMinutes(unix.getUTCMinutes() + time.minutes);
 
-      result = await this.repo.createCyclic(
+      result = await this.alarmRepo.createCyclic(
         time.dayNumber,
         data.userId,
         data.guildId,
@@ -216,7 +225,7 @@ class Alarm implements CommandDefinition {
       const date = data.date as Date;
       const reason = (data.reason === null) ? "" : data.reason;
 
-      result = await this.repo.createFixed(
+      result = await this.alarmRepo.createFixed(
         date,
         data.userId,
         data.guildId,
@@ -230,6 +239,22 @@ class Alarm implements CommandDefinition {
   
   }
 
+  private async addOffset(hourMinute: number[], guildId: string) : Promise<number[]> {
+
+    const offset = await this.settingsRepo.getServerTz(guildId);
+    let result : number[] = [];
+    
+    if ( offset !== undefined ) {
+
+      result[0] = Number(hourMinute[0]) + Number(offset);
+      result[1] = hourMinute[1];
+
+    }
+
+    return result;
+
+  }
+
   private async removeAlarm(msg : Message, args : string[]): Promise<string> {
     // XXX implement
     return "";
@@ -238,21 +263,30 @@ class Alarm implements CommandDefinition {
   private async parseSetArgs(msg: Message, args: string[])
     : Promise<ParseDatePayload> {
 
-
     let date : Date;
 
-    const eMsg = 
+    const defaultErrorMsg = 
       `Error serializing; use \`?help ${this.name}\` to read about correct formats.`;
+
+    const timezoneNotSetErrorMsg = 
+      `This server doesn't currently have a timezone set. Ask an admin to modify server settings using \`server set\` command.`;
 
 
     const utcnow     = new Date();
-    const isThisWeek = ( (this.natural.indexOf(args[0]) === 0) );
-    const isCycle    = ( (args[0] in this.cycle) );
+    const isThisWeek = ( this.natural.indexOf(args[0]) === 0 );
+    const isCycle    = ( args[0] in this.cycle );
     const dayNumber  = this.weekday.indexOf(args[1]);
     const today      = utcnow.getDay();
 
-    const timeMatch  = this.hourRegexp.exec(args[2]);
-    if ( timeMatch === null ) return ParseDatePayload.newInvalid(eMsg);
+    const ddmmMatch = this.ddmmRegexp.exec(args[0]);
+    const isDDMM = (ddmmMatch === null) ? false : ddmmMatch.length !== 0;
+
+    const timeArgPos   = isDDMM ? 1 : 2;
+    const reasonArgPos = timeArgPos + 1;
+
+
+    const timeMatch  = this.hourRegexp.exec(args[timeArgPos]);
+    if ( timeMatch === null ) return ParseDatePayload.newInvalid(defaultErrorMsg);
 
     let timeMatchArray = timeMatch[0].split(".");
     if ( timeMatchArray.length === 1 ) timeMatchArray = timeMatch[0].split(":"); 
@@ -262,39 +296,90 @@ class Alarm implements CommandDefinition {
       hourMinute = timeMatchArray as unknown as number[];
     
     } catch (e) {
-      return ParseDatePayload.newInvalid(eMsg);
+      return ParseDatePayload.newInvalid(defaultErrorMsg);
 
     }
 
-    const unparsedReason = args.slice(3, args.length).join(' ');
+    hourMinute = await this.addOffset(hourMinute, msg.guild.id);
+    if ( hourMinute.length === 0 ) return ParseDatePayload.newInvalid(timezoneNotSetErrorMsg);
+
+    const unparsedReason = args.slice(reasonArgPos, args.length).join(' ');
     const reason = await this.parseReason(unparsedReason);
 
     this.logger.silly(
       `natural/cycle:${isThisWeek}/${isCycle} | day:${dayNumber} | time:${hourMinute} | ${reason}`
     );
 
-    if (reason.length > this.reasonMaxLength) return ParseDatePayload.newInvalid(eMsg);  // XXX
+    if (reason.length > this.reasonMaxLength) return ParseDatePayload.newInvalid(defaultErrorMsg);
 
-    if (isCycle) {
+    if ( isDDMM ) {
+
+      if ( ddmmMatch === null ) return ParseDatePayload.newInvalid(defaultErrorMsg);
+
+      this.logger.debug(`Alarm request parsed as DDMM.`);
+
+      let ddmmMatchArrray = ddmmMatch[0].split("-");
+      if ( ddmmMatchArrray.length === 1 ) ddmmMatchArrray = ddmmMatchArrray[0].split("/"); 
+      let ddmm : number[] = [];
+
+      try {
+        ddmm = ddmmMatchArrray as unknown as number[];
+      
+      } catch (e) {
+        return ParseDatePayload.newInvalid(defaultErrorMsg);
+
+      }
+
+      date =
+        new Date(utcnow.getTime());
+
+
+      date.setUTCDate(ddmm[0]);
+      date.setUTCMonth(ddmm[1]);
+      date.setUTCHours(hourMinute[0]);
+      date.setUTCMinutes(hourMinute[1]);
+
+      return ParseDatePayload.newValid(
+        date, 
+        reason, 
+        msg.author.id, 
+        msg.guild.id, 
+        msg.channel.id
+      );
+
+    } else if (isCycle) {
 
       this.logger.debug(`Alarm request parsed as cycle.`);
 
       const time = new Time(hourMinute[0], hourMinute[1], dayNumber);
-      return ParseDatePayload.newValid(time, reason, msg.author.id, msg.guild.id, msg.channel.id);
-    
+
+      return ParseDatePayload.newValid(
+        time, 
+        reason, 
+        msg.author.id, 
+        msg.guild.id, 
+        msg.channel.id
+      );
+
     } else if ( isThisWeek ) {
 
-      if (  today > dayNumber ) return ParseDatePayload.newInvalid(eMsg);
+      if (  today > dayNumber ) return ParseDatePayload.newInvalid(defaultErrorMsg);
 
       date =
         new Date(utcnow.setTime( utcnow.getTime() + ((dayNumber - today)*24)*3600*1000));
 
-      // XXX include offset.
       date.setUTCHours(hourMinute[0]);
       date.setUTCMinutes(hourMinute[1]);
 
       this.logger.debug(`Alarm request parsed as fixed in current week.`);
-      return ParseDatePayload.newValid(date, reason, msg.author.id, msg.guild.id, msg.channel.id);
+
+      return ParseDatePayload.newValid(
+        date, 
+        reason, 
+        msg.author.id, 
+        msg.guild.id, 
+        msg.channel.id
+      );
 
     } else if ( !isCycle  && !isThisWeek ){
 
@@ -303,20 +388,20 @@ class Alarm implements CommandDefinition {
 
       const daysToAdd = ( (6 - today) + dayNumber + 1 );
 
-      // XXX include offset.
-      date.setUTCDate(date.getUTCDate() + daysToAdd);
       date.setUTCHours(hourMinute[0]);
+      date.setUTCDate(date.getUTCDate() + daysToAdd);
       date.setUTCMinutes(hourMinute[1]);
 
       this.logger.debug(`Alarm request parsed as fixed in next week.`);
       return ParseDatePayload.newValid(date, reason, msg.author.id, msg.guild.id, msg.channel.id);
 
     } else {
-      return ParseDatePayload.newInvalid(eMsg);
+      return ParseDatePayload.newInvalid(defaultErrorMsg);
 
     }
 
   }
+
 
   private async parseReason(reason : string) : Promise<string> {
 
@@ -347,6 +432,13 @@ class Alarm implements CommandDefinition {
 }
 
 
-const alarm = new Alarm(name, desc, help, DEFAULT_COOLDOWN, new AlarmRepo());
+const alarm = new Alarm(
+  name,
+  desc,
+  help, 
+  DEFAULT_COOLDOWN,
+  new AlarmRepo(),
+  new SettingsRepo()
+);
 
 module.exports = alarm;

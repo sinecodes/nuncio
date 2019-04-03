@@ -1,6 +1,5 @@
 
-
-CREATE TABLE fixed (
+CREATE TABLE IF NOT EXISTS public.fixed (
   
   _id       SERIAL PRIMARY KEY,
   ts        TIMESTAMP,
@@ -11,7 +10,7 @@ CREATE TABLE fixed (
 
 );
 
-CREATE TABLE cyclic (
+CREATE TABLE IF NOT EXISTS public.cyclic (
   
   _id       SERIAL PRIMARY KEY,
   dayNo     int,
@@ -23,4 +22,10 @@ CREATE TABLE cyclic (
 
 );
 
+CREATE TABLE IF NOT EXISTS public.server_settings (
 
+  _id     SERIAL PRIMARY KEY,
+  guildId varchar(20),
+  tz      smallint
+
+);

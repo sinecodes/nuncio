@@ -19,8 +19,8 @@
   "tsc": "tsc",
   "node:w": "nodemon dist/src/app.js",
   "tsc:w": "tsc -w",
-  "test": "jest",
-  "postinstall": "npm run test && npm tsc"
+  "test": "jasmine",
+  "postinstall": "npm run tsc && npm run test"
  },
  "keywords": [
   "discord",
@@ -39,6 +39,7 @@
  "dependencies": {
   "discord.js": "^11.4.2",
   "express": "^4.16.4",
+  "handy-redis": "^1.5.2",
   "howlongtobeat": "^1.1.1",
   "pg": "^7.9.0",
   "reflect-metadata": "^0.1.13",

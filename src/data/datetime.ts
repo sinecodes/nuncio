@@ -6,8 +6,20 @@ import { Pool } from "pg";
 const sillyConsole =
   new Winston.transports.Console({level: "silly", stderrLevels: ["error"]});
 
-const fixedTableName  = "";
-const cyclicTableName = "";
+const fixedTableName  = "fixed";
+const cyclicTableName = "cyclic";
+
+class AlarmPayload {
+  channelId: string;
+  msg: string;
+
+  constructor(channelId: string, msg: string) {
+
+    this.channelId = channelId;
+    this.msg       = msg;
+  
+  }
+}
 
 class AlarmRepo {
 
@@ -133,6 +145,81 @@ class AlarmRepo {
 
     return isSuccess;
 
+  }
+
+  async getCurrentAlarms() : Promise<AlarmPayload[]> {
+
+    const client = await this.pool.connect();
+
+    const now   = new Date();
+    const later = new Date();
+    later.setUTCMinutes(now.getUTCMinutes() + 1);
+
+    let result : AlarmPayload[] = [];
+
+    const fixedQuery = {
+
+      name: "fixed-routine-check",
+      text: `SELECT channelId, msg FROM fixed WHERE ts>=$1::timestamp AND ts<$2::timestamp;`,
+      values: [ now.toISOString(), later.toISOString() ]
+    
+    };
+
+    const cyclicQuery = {
+
+      name: "cyclic-routine-check",
+      text: `SELECT channelId, msg FROM cyclic where time::time>='$1'::time time::time<'$2'::time and dayno=$3`,
+      values: [ now.getUTCHours(), later.getUTCMinutes(), now.getDay() ]
+    
+    };
+
+    try {
+
+      this.logger.debug(
+        `Executing query: ${fixedQuery.text} with values: ${fixedQuery.values.join(', ')}`
+      );
+
+      const queryResult = await client.query(fixedQuery);
+
+      for(var row in queryResult.rows) {
+        result.push(new AlarmPayload(row["channelId"], row["msg"]));
+      }
+    
+    } catch (e) {
+      this.logger.error((<Error>e).message);
+      client.release();
+      return result;
+    
+    } finally {
+      client.release();
+    
+    }
+
+    try {
+
+      this.logger.debug(
+        `Executing query: ${cyclicQuery.text} with values: ${cyclicQuery.values.join(', ')}`
+      );
+
+      const queryResult = await client.query(cyclicQuery);
+
+      for(var row in queryResult.rows) {
+        result.push(new AlarmPayload(row["channelId"], row["msg"]));
+      }
+    
+    } catch (e) {
+      this.logger.error(
+        `Error on cyclic query: ${(<Error>e).message}`
+      );
+    
+    } finally {
+      client.release();
+    
+    }
+
+
+    return result;
+  
   }
 
 
