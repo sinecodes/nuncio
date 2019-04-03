@@ -4,6 +4,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "target": "ES6",
+    "incremental": true,
     "noImplicitAny": false,
     "moduleResolution": "node",
     "strictNullChecks": true,
