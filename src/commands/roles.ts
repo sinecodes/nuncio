@@ -15,7 +15,7 @@ Simple role system management that takes role ranks (order) and permissions into
 
 There are certain permissions (like managing roles or muting/deafening members) that forbid
 assigning yourself a role. You won't be able to do it either if you don't have at least a role
-with a higher order than the one you're aiming for.
+with a higher order than the one you're aiming for (order can be modified by moderators).
 
 Usage:
 role {rolename}     - Assign/Unassign role
@@ -50,15 +50,14 @@ class GuildRole implements CommandDefinition {
   }
 
 
-  private async userIsAboveRoleRank(user: GuildMember, targetRole : Role) : Promise<boolean> {
+  private async userIsAboveRoleRank(user: GuildMember, roleToAssign : Role) : Promise<boolean> {
 
-    // TODO test this one with a supposedly unprivileged user attempting to assign theirselves
-    // a role with higher rank than their highest ranked role.
-    const roleCandidate : Role | null = user.roles.find( (role, snowflake) => {
-      return role.position > targetRole.position;
+    const roleCandidate : Role | null = user.roles.find( (userRole, snowflake) => {
+      return userRole.position > roleToAssign.position;
     });
 
-    return (roleCandidate !== null);
+    return (roleCandidate !== null || user.roles.size !== 1);
+
   }
 
 
@@ -80,10 +79,11 @@ class GuildRole implements CommandDefinition {
     let response    = "";
 
     const role : Role = guild.roles.find( (role, snowflake) => { return role.name === arg; });
+    if  (role === null) return `No role found by ${arg}.`;
 
     try {
 
-      if (await this.hasExcludedPerms(role) && !this.userIsAboveRoleRank(member, role)) {
+      if (await this.hasExcludedPerms(role) || await this.userIsAboveRoleRank(member, role)) {
         return "You can't do that; ask a moderator to assign you a privileged role."
       
       } else {
